@@ -1,6 +1,8 @@
 import requests
 import os
 import json
+from datetime import datetime
+import utils
 
 # To set your enviornment variables in your terminal run the following line:
 # export 'BEARER_TOKEN'='<your_bearer_token>'
@@ -82,8 +84,10 @@ def set_rules(delete):
     print(json.dumps(response.json()))
 
 
+
 def get_stream(set):
-    users_detected = {}
+    global_count = 0
+    users_dict = {}
     expansions = "author_id"
     response = requests.get(
         "https://api.twitter.com/2/tweets/search/stream?expansions={}".format(expansions), auth=bearer_oauth, stream=True,
@@ -97,15 +101,34 @@ def get_stream(set):
         )
     for response_line in response.iter_lines():
         if response_line:
+            global_count += 1
             json_response = json.loads(response_line)
-            #print(json.dumps(json_response, indent=4, sort_keys=True))
+            #print(json_response)
+
             tweet_author_id = json_response["data"]["author_id"]
-            if tweet_author_id not in users_detected:
-                users_detected[tweet_author_id] = 1
+            
+            # a new user is detected
+            if tweet_author_id not in users_dict:
+                current_user = {}
+                current_user['user_id'] = json_response["data"]["author_id"]
+                current_user['probe_time'] = datetime.now()
+                current_user['matching_rules'] = json_response['matching_rules']
+                current_user['nb_tweets'] = 1
+                users_dict[tweet_author_id] = current_user
             else:
-                users_detected[tweet_author_id] += 1
-            if users_detected[tweet_author_id] >= 4:
-                print(tweet_author_id + " " + str(users_detected[tweet_author_id]) + "\n")
+                users_dict[tweet_author_id]['nb_tweets'] += 1
+                users_dict[tweet_author_id]['matching_rules'] = users_dict[tweet_author_id]['matching_rules'] + json_response['matching_rules']
+
+            print(users_dict[tweet_author_id])
+            print('\n')
+
+            if global_count % 1000 == 0:
+                filename = "output/output_{}.json".format(datetime.timestamp(datetime.now()))
+                utils.save_to_JSON_file(users_dict, filename=filename)
+                users_dict = {}
+
+
+  
 
 
 
@@ -114,6 +137,7 @@ def main():
     #rules = get_rules()
     #delete = delete_all_rules(rules)
     #set = set_rules(delete)
+    utils.remove_temp_files()
     get_stream(set)
 
 
