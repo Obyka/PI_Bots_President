@@ -10,7 +10,7 @@ TWIBOT20_FOLDER = 'Twibot-20'
 TWIBOT20_PROBE_TIME = '2020-09-06'
 
 def feature_engineering(profiles):
-    profiles['user_age'] = (profiles['probe_date'] - profiles['created_at']).dt.days
+    profiles['user_age'] = (profiles['probe_date'] - profiles['created_at']).dt.total_seconds()
 
     profiles['tweet_freq'] = profiles['statuses_count'].div(profiles['user_age'])
     profiles['followers_growth_rate'] = profiles['followers_count'].div(profiles['user_age'])
@@ -39,6 +39,9 @@ def remove_useless_api_columns(profiles):
 
 def remove_cresci17_extra_columns(profiles):
     return profiles.drop(['following', 'timestamp', 'test_set_1', 'test_set_2', 'crawled_at', 'notifications', 'profile_banner_url', 'follow_request_sent'], axis=1)
+
+def remove_midterm18_extra_columns(profiles):
+    return profiles.drop(['tid'], axis=1)
 
 def load_twibot20(dataset='train', probe=TWIBOT20_PROBE_TIME, feature_engineering=None):
     probe_date = pd.to_datetime(probe, utc=True)
