@@ -4,11 +4,16 @@ import json
 from datetime import datetime
 import utils
 import sys
+from ratelimit import limits, sleep_and_retry
 
 # To set your enviornment variables in your terminal run the following line:
 # export 'BEARER_TOKEN'='<your_bearer_token>'
 bearer_token = os.environ.get("BEARER_TOKEN")
 CHUNK_SIZE = 100
+# The real rate is 300, a little margin is set to prevent exceptions
+REQUEST_RATE = 250
+FIFTEEN_MINUTES = 900
+
 
 
 def bearer_oauth(r):
@@ -20,21 +25,31 @@ def bearer_oauth(r):
     r.headers["User-Agent"] = "v2FilteredStreamPython"
     return r
 
+
+@sleep_and_retry
+@limits(calls=REQUEST_RATE, period=FIFTEEN_MINUTES)
+def call_users_api(chunk):
+    ids = ','.join(chunk)
+
+    response = requests.get(
+        "https://api.twitter.com/1.1/users/lookup.json?user_id={}".format(ids),
+        auth=bearer_oauth
+        )
+    if response.status_code == 429:
+        print(response.headers)
+        raise Exception('API response: {}'.format(response.status_code))    
+    else:
+        print('request is successful')
+    return response.json()
+
 def get_users_feature(user_dict):
     dict_keys = list(user_dict.keys())
     chunks = [dict_keys[x:x+CHUNK_SIZE] for x in range(0, len(dict_keys), CHUNK_SIZE)]
+    #requests = [chunks[x:x+REQUEST_RATE] for x in range(0, len(chunks),REQUEST_RATE )]
+    #print('There will be ' + str(len(requests)) + 'requests')
+    print('There will be ' + str(len(chunks)) + 'chunks')
     for chunk in chunks:
-        ids = ','.join(chunk)
-
-        response = requests.get(
-            "https://api.twitter.com/1.1/users/lookup.json?user_id={}".format(ids),
-            auth=bearer_oauth
-            )
-        if response.status_code != 200:
-            raise Exception(
-                "Cannot retrieve users details (HTTP {}): {}".format(response.status_code, response.text)
-            )
-        json_response = response.json()
+        json_response = call_users_api(chunk)
         for user in json_response:
             user_id = user['id_str']
             user_dict[user_id]['statuses_count'] = user["statuses_count"]
@@ -57,7 +72,6 @@ def get_users_feature(user_dict):
             
     filename = "feature/features_{}.json".format(datetime.timestamp(datetime.now()))
     utils.save_to_JSON_file(user_dict, filename)
-
 
 def merge_json_files(directory):
     total_dict = {}

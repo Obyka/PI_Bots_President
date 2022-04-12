@@ -1,3 +1,4 @@
+import profile
 import pandas as pd
 import numpy as np
 
@@ -9,7 +10,7 @@ DATASETS_PATH = '../'
 TWIBOT20_FOLDER = 'Twibot-20'
 TWIBOT20_PROBE_TIME = '2020-09-06'
 
-def feature_engineering(profiles):
+def feature_engineering(profiles, check_url=True):
     profiles['user_age'] = (profiles['probe_date'] - profiles['created_at']).dt.total_seconds()
 
     profiles['tweet_freq'] = profiles['statuses_count'].div(profiles['user_age'])
@@ -33,6 +34,9 @@ def feature_engineering(profiles):
     #profiles.drop(['url', 'location'], axis=1, inplace=True)
     
     return profiles
+
+def remove_presidential22_extra_columns(profiles):
+    return profiles.drop(['nb_tweets', 'timestamp', 'test_set_1', 'test_set_2', 'crawled_at', 'notifications', 'profile_banner_url', 'follow_request_sent'], axis=1)
 
 def remove_useless_api_columns(profiles):
     return profiles.drop(['protected', 'contributors_enabled', 'is_translator', 'is_translation_enabled', 'utc_offset', 'time_zone', 'lang', 'profile_background_color', 'profile_background_image_url', 'profile_image_url', 'profile_link_color', 'profile_sidebar_border_color', 'profile_sidebar_fill_color', 'profile_text_color', 'profile_location', 'entities', 'has_extended_profile'], axis=1, errors='ignore')
@@ -125,6 +129,38 @@ def load_cresci17():
 
     return profiles
 
+
+def load_presidential22():
+    file= "twitter_api/data/feature/features_1649666566.850515.json"
+    profiles = pd.read_json(file)
+    profiles = profiles.T
+    profiles.drop(['matching_rules'], axis=1, inplace=True)
+    profiles.rename(columns={'probe_time': 'probe_date'}, inplace=True)
+    profiles.rename(columns={'has_url': 'url'}, inplace=True)
+
+    profiles.drop(profiles[profiles['friends_count'].isna()].index, inplace=True)
+       # Convert columns to integer
+    profiles[['followers_count', 'friends_count', 'listed_count', 'favourites_count', 'statuses_count']] = profiles[['followers_count', 'friends_count', 'listed_count', 'favourites_count', 'statuses_count']].apply(pd.to_numeric)
+
+    # Convert strings to dates
+    profiles['created_at'] = profiles['created_at'].apply(pd.to_datetime, utc=True)
+
+    # Replace "True ", "False ", "None " by python types
+    profiles.replace({'True': True, 'False': False, 'None': None}, inplace=True)
+
+    profiles['created_at'] = profiles['created_at'].apply(date_or_timestamp_converter)
+    profiles['probe_date'] = profiles['probe_date'].apply(date_or_timestamp_converter)
+
+        # Convert to bool
+    profiles['geo_enabled'] = profiles['geo_enabled'] == 1
+    profiles['verified'] = profiles['verified'] == 1
+    profiles['profile_background_tile'] = profiles['profile_background_tile'] == 1
+    profiles['profile_use_background_image'] = profiles['profile_use_background_image'] == 1
+    profiles['default_profile'] = profiles['default_profile'] == 1
+    profiles['default_profile_image'] = profiles['default_profile_image'] == 1
+
+
+    return profiles
 
 def load_midterm18():
     file_users = "../midterm-2018_processed_user_objects.json"
