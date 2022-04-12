@@ -9,6 +9,28 @@ DATASETS_PATH = '../'
 
 TWIBOT20_FOLDER = 'Twibot-20'
 TWIBOT20_PROBE_TIME = '2020-09-06'
+MODEL_FEATURES = ['default_profile',
+                 'description_length', 
+                 'favourites_count', 
+                 'favourites_growth_rate',
+                 'followers_count',
+                 'followers_friends_ratio',
+                 'followers_growth_rate',
+                 'friends_count',
+                 'friends_growth_rate',
+                 'geo_enabled',
+                 'has_url',
+                 'listed_count',
+                 'listed_growth_rate',
+                 'name_length',
+                 'num_digits_in_name',
+                 'num_digits_in_screen_name',
+                 'profile_use_background_image',
+                 'screen_name_length',
+                 'statuses_count',
+                 'tweet_freq',
+                 'user_age',
+                 'verified']
 
 def feature_engineering(profiles, check_url=True):
     profiles['user_age'] = (profiles['probe_date'] - profiles['created_at']).dt.total_seconds()
@@ -28,7 +50,7 @@ def feature_engineering(profiles, check_url=True):
     profiles['num_digits_in_name'] = profiles['name'].str.count('\d')
     profiles['num_digits_in_screen_name'] = profiles['screen_name'].str.count('\d')
 
-    profiles['has_url'] = profiles['url'].isna()
+    profiles['has_url'] = ~profiles['url'].isna()
     #profiles['has_location'] = profiles['location'].isna()
 
     #profiles.drop(['url', 'location'], axis=1, inplace=True)
@@ -36,7 +58,8 @@ def feature_engineering(profiles, check_url=True):
     return profiles
 
 def remove_presidential22_extra_columns(profiles):
-    return profiles.drop(['nb_tweets', 'timestamp', 'test_set_1', 'test_set_2', 'crawled_at', 'notifications', 'profile_banner_url', 'follow_request_sent'], axis=1)
+    #return profiles.drop(['nb_tweets', 'timestamp', 'test_set_1', 'test_set_2', 'crawled_at', 'notifications', 'profile_banner_url', 'follow_request_sent'], axis=1)
+    return profiles[MODEL_FEATURES]
 
 def remove_useless_api_columns(profiles):
     return profiles.drop(['protected', 'contributors_enabled', 'is_translator', 'is_translation_enabled', 'utc_offset', 'time_zone', 'lang', 'profile_background_color', 'profile_background_image_url', 'profile_image_url', 'profile_link_color', 'profile_sidebar_border_color', 'profile_sidebar_fill_color', 'profile_text_color', 'profile_location', 'entities', 'has_extended_profile'], axis=1, errors='ignore')
@@ -134,12 +157,14 @@ def load_presidential22():
     file= "twitter_api/data/feature/features_1649666566.850515.json"
     profiles = pd.read_json(file)
     profiles = profiles.T
-    profiles.drop(['matching_rules'], axis=1, inplace=True)
+
     profiles.rename(columns={'probe_time': 'probe_date'}, inplace=True)
     profiles.rename(columns={'has_url': 'url'}, inplace=True)
 
+    # Delete rows with invalid data (probably banned account)
     profiles.drop(profiles[profiles['friends_count'].isna()].index, inplace=True)
-       # Convert columns to integer
+    
+    # Convert columns to integer
     profiles[['followers_count', 'friends_count', 'listed_count', 'favourites_count', 'statuses_count']] = profiles[['followers_count', 'friends_count', 'listed_count', 'favourites_count', 'statuses_count']].apply(pd.to_numeric)
 
     # Convert strings to dates
