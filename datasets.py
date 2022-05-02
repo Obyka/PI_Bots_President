@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 
 import os
+import botometer
 
 #os.chdir('PI_Bots_President')
 DATASETS_PATH = '../'
@@ -29,8 +30,7 @@ MODEL_FEATURES = ['default_profile',
                  'screen_name_length',
                  'statuses_count',
                  'tweet_freq',
-                 'user_age',
-                 'verified']
+                 'user_age']
 
 def feature_engineering(profiles, check_url=True):
     profiles['user_age'] = (profiles['probe_date'] - profiles['created_at']).dt.total_seconds()
@@ -56,6 +56,30 @@ def feature_engineering(profiles, check_url=True):
     #profiles.drop(['url', 'location'], axis=1, inplace=True)
     
     return profiles
+
+def get_botometer_scores(accounts_scrren_name):
+
+    rapidapi_key = os.environ.get("rapidapi_key")
+    twitter_app_auth = {
+    'consumer_key': os.environ.get("consumer_key"),
+    'consumer_secret': os.environ.get("consumer_secret"),
+    'access_token': os.environ.get("access_token"),
+    'access_token_secret': os.environ.get("access_token_secret")
+  }
+    bom = botometer.Botometer(wait_on_ratelimit=True,
+                          rapidapi_key=rapidapi_key,
+                          **twitter_app_auth)
+
+    result = []
+    for account in accounts_scrren_name:
+        try:
+            result.append(bom.check_account(account)['display_scores']['universal']['overall'])
+        except:
+            result.append(-1)
+    return result
+
+    
+
 
 def remove_presidential22_extra_columns(profiles):
     #return profiles.drop(['nb_tweets', 'timestamp', 'test_set_1', 'test_set_2', 'crawled_at', 'notifications', 'profile_banner_url', 'follow_request_sent'], axis=1)
@@ -153,11 +177,12 @@ def load_cresci17():
     return profiles
 
 
-def load_presidential22():
+def load_presidential22(floor_nb_tweets):
     file= "twitter_api/data/feature/features_1649666566.850515.json"
     profiles = pd.read_json(file)
     profiles = profiles.T
 
+    profiles = profiles[profiles['nb_tweets'] >= floor_nb_tweets]
     profiles.rename(columns={'probe_time': 'probe_date'}, inplace=True)
     profiles.rename(columns={'has_url': 'url'}, inplace=True)
 
